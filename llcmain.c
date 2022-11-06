@@ -10,74 +10,15 @@
 	line of input; -s turns	off all but statistics
 	output.
 */
+#include "defs.h"
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-
-#define MAXLINELEN 20
-
+Set_t *set = NULL;
 int NormalMode = 1;
-
-void ParseFile(FILE *input)
-{
-	char cmd;
-	unsigned int addr;
-	
-	char *line;
-	char buf[MAXLINELEN];
-	
-	while ((line = fgets(buf, MAXLINELEN, input)) != NULL)
-	{
-		if (sscanf(line, " %c %x", &cmd, &addr) != 2)
-		{
-			fprintf(stderr, "bad input line ignored: '%s'\n", line);
-			continue;
-		}
-		
-		/*
-		if (strlen(tmp) != 1)
-		{
-			fprintf(stderr, "bad command in input line: '%s'\n", tmp);
-			continue;
-		}
-		*/
-		
-		/* check that cmd is a valid char */
-		/* cmd = *tmp; */
-		
-		switch (cmd)
-		{
-			case '0':
-			case '1':
-			case '2':
-			case '3':
-			case '4':
-			case '5':
-			case '6':
-			case '8':
-				/* Not yet implemented */
-				break;
-					
-			case '9':
-				/* Print statistics */
-				break;
-					
-			default:
-				fprintf(stderr, "bad command character: '%c'\n", cmd);
-				continue;
-		}
-
-		/* Check that the address is valid */
-		/* if (addr > MAXADDRESS) ... */
-			
-		if (NormalMode)
-		{
-			printf("BusOp: %c Address: %08x\n", cmd, addr);
-		}
-	}
-}
-
+unsigned int Reads,
+			 Writes,
+			 Hits,
+			 Misses,
+			 HitRatio;
 
 int main(int argc, char *argv[])
 {	
@@ -117,5 +58,111 @@ int main(int argc, char *argv[])
         }
 	}
 
+	Init();
 	ParseFile(file);
+	Cleanup(file);
+}
+
+void Init()
+{
+	/* calloc assures valid-flag initialized to zero */
+	set = calloc(NUM_SETS, sizeof(Set_t));
+	if (set == NULL)
+	{
+		fprintf(stderr, "Memory allocation error\n");
+		exit(1);
+	}
+	
+	Reads = 0;
+	Writes = 0;
+	Hits = 0;
+	Misses = 0;
+	HitRatio = 0;
+}
+
+void Cleanup(FILE *input)
+{
+	free(set);
+	fclose(input);
+}
+
+void ParseFile(FILE *input)
+{
+	char Cmd;
+	unsigned int Address;
+	int linecount = 0;
+	
+	char *line;
+	char buf[MAXLINELEN];
+	
+	while ((line = fgets(buf, MAXLINELEN, input)) != NULL)
+	{
+		if (sscanf(line, " %c %x", &Cmd, &Address) != 2)
+		{
+			fprintf(stderr, "Bad input line ignored: '%s'\n", line);
+			continue;
+		}
+		
+		switch (Cmd)
+		{
+			case '0': /* Read request from L1 data cache */
+			case '1': /* Write request from L1 data cache */
+			case '2': /* Read request from L1 instruction cache */
+			case '3': /* Snooped invalidate command */
+			case '4': /* Snooped read request */
+			case '5': /* Snooped write request */
+			case '6': /* Snooped read with intent to modify */
+				break;
+			case '8': /* Clear cache and reset state */
+				/* this is cheesy but why not */
+				free(set);
+				Init();
+				break;		
+			case '9': /* Print contents and state of each valid cache line */
+				break;
+					
+			default:
+				fprintf(stderr, "bad command character: '%c' at line %d\n", Cmd, linecount);
+				exit(1);
+		}
+		linecount += 1;
+	}
+}
+
+/*  
+Used to simulate a bus operation and to capture the snoop results of last level 
+caches of other processors 
+*/ 
+void BusOperation(char BusOp, unsigned int Address, char *SnoopResult) 
+{ 
+	// SnoopResult = GetSnoopResult(Address);
+	if (NormalMode)
+	{ 
+		printf("BusOp: %d, Address: %x, Snoop Result: %d\n", BusOp, Address, *SnoopResult);
+	}
+} 
+ 
+/* Simulate the reporting of snoop results by other caches */ 
+char GetSnoopResult(unsigned int Address) 
+{ 
+	/* returns HIT, NOHIT, or HITM */
+	return NOHIT;
+} 
+ 
+/* Report the result of our snooping bus operations performed by other caches */ 
+void PutSnoopResult(unsigned int Address, char SnoopResult)
+{ 
+	if (NormalMode)
+	{		
+		printf("SnoopResult: Address %x, SnoopResult: %d\n", Address, SnoopResult); 
+	}
+} 
+ 
+/* Used to simulate communication to our upper level cache */ 
+void MessageToCache(char Message, unsigned int Address)
+{ 
+	if (NormalMode)
+	{		
+		printf("L2: %d %x\n",  Message, Address);
+	}
 }

@@ -1,8 +1,6 @@
 CC = gcc
 OBJS = llcmain.c
 
-#INCLUDE_PATHS = -IC:\
-#LIBRARY_PATHS = -LC:\
 INCLUDE_PATHS =
 LIBRARY_PATHS =
 
