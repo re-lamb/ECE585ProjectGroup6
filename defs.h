@@ -19,8 +19,22 @@
 #define ID(x)		((x >> ID_SHIFT) & ID_MASK)
 #define TAG(x)		((x >> TAG_SHIFT) & TAG_MASK)
 
+// I used an enum so that the states would all start 
+// as invalid but we can change this to a char or
+// uint8_t as specified in the google doc
+typedef enum 	
+{		INVALID,
+		SHARED,
+		EXCLUSIVE,
+		MODIFIED
+		}	MESI_State_t;				
+
+
 typedef struct Way
 {
+	// I am not 100% but I think the state machine removes the need for
+	//  valid and/or dirty bits
+	MESI_State_t State;
 	bool valid;
 	bool dirty;
 	uint32_t tag;
