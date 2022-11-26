@@ -166,3 +166,81 @@ void MessageToCache(char Message, unsigned int Address)
 		printf("L2: %d %x\n",  Message, Address);
 	}
 }
+void MESI_FSM(Way_t Way, char Cmd) 
+{
+	switch(State) {
+
+		case 'INVALID':
+			if (Cmd = 1) {
+				// issue bus op BusRdX
+				// Cache Miss
+				Way.State = MODIFIED;
+			}
+			if (Cmd = 0) {
+				// snoop other caches to see if they have the line
+				if (GetSnoopResult(address) = HIT) {
+					// issue bus op BusRd
+					// Cache Miss
+					Way.State = SHARED;
+				}
+				if (GetSnoopResult(adress) = NOHIT) {
+					// issue bus op BusRd
+					// Cache Miss
+					Way.State = EXCLUSIVE;
+				}
+			}
+
+		case 'SHARED':
+			if (Cmd = 1) {
+				// issue bus op BusRdX
+				// Cache Hit and Cache Write
+				Way.State = MODIFIED;
+			}
+			if (Cmd = 0) {
+				Way.State = SHARED;
+				// Cache Hit and Cache Read
+			}
+			if (Cmd = 6) {
+				Way.State = INVALID;
+			}
+			if (Cmd = 4) {
+				Way.State = SHARED;
+			}
+
+		case 'EXCLUSIVE':
+			if (Cmd = 1) {
+				Way.State = MODIFIED;
+				// Cache Hit and Cache Write
+			}
+			if (Cmd = 0) {
+				Way.State = EXCLUSIVE;
+				// Cache Hit and Cache Read
+			}
+			if (Cmd = 6) {
+				Way.State = INVALID;
+			}
+			if (Cmd = 4) {
+				Way.State = SHARED;
+			}
+
+		case 'MODIFIED':
+			if (Cmd = 1) {
+				Way.State = MODIFIED;
+				// Cache Hit and Cache Write
+			}
+			if (Cmd = 0) {
+				Way.State = MODIFIED;
+				// Cache Hit and Cache Read
+			}
+			if (Cmd = 6) {
+				Way.State = INVALID;
+				// flush? I think no flush bc no actual data
+			}
+			if (Cmd = 4) {
+				Way.State = SHARED;
+				// flush? I think no flush bc no actual data
+			}
+
+	}
+
+}
