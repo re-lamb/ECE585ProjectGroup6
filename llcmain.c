@@ -12,7 +12,7 @@
 */
 #include "defs.h"
 
-Set_t *set = NULL;
+Set_t *Set = NULL;
 int NormalMode = 1;
 unsigned int Reads,
 			 Writes,
@@ -22,8 +22,8 @@ unsigned int Reads,
 
 int main(int argc, char *argv[])
 {	
-	FILE *file;
-	char *filename = NULL;
+	FILE *File;
+	char *FileName = NULL;
 	
 	for (int i = 1; i < argc; i++)
 	{
@@ -31,9 +31,9 @@ int main(int argc, char *argv[])
 		{
 			NormalMode = 0;
 		}
-		else if (filename == NULL)
+		else if (FileName == NULL)
 		{
-			filename = argv[i];
+			FileName = argv[i];
 		}
 		else
 		{
@@ -43,31 +43,31 @@ int main(int argc, char *argv[])
     }
 
 	/* If no file given, read from standard input */
-	if (filename == NULL || !strcasecmp(filename, "-"))
+	if (FileName == NULL || !strcasecmp(FileName, "-"))
 	{
-		file = stdin;
+		File = stdin;
 	}
 	else
     {
-        file = fopen(filename, "r");
+        File = fopen(FileName, "r");
  
-        if (!file)
+        if (!File)
         {
-            fprintf(stderr, "Could not open file %s\n", filename);
+            fprintf(stderr, "Could not open file %s\n", FileName);
 			exit(1);
         }
 	}
 
 	Init();
-	ParseFile(file);
-	Cleanup(file);
+	ParseFile(File);
+	Cleanup(File);
 }
 
 void Init()
 {
 	/* calloc assures valid-flag initialized to zero */
-	set = calloc(NUM_SETS, sizeof(Set_t));
-	if (set == NULL)
+	Set = calloc(NUM_SETS, sizeof(Set_t));
+	if (Set == NULL)
 	{
 		fprintf(stderr, "Memory allocation error\n");
 		exit(1);
@@ -80,22 +80,22 @@ void Init()
 	HitRatio = 0;
 }
 
-void Cleanup(FILE *input)
+void Cleanup(FILE *Input)
 {
-	free(set);
-	fclose(input);
+	free(Set);
+	fclose(Input);
 }
 
-void ParseFile(FILE *input)
+void ParseFile(FILE *Input)
 {
 	char Cmd;
 	unsigned int Address;
-	int linecount = 0;
+	int LineCount = 0;
 	
 	char *line;
 	char buf[MAXLINELEN];
 	
-	while ((line = fgets(buf, MAXLINELEN, input)) != NULL)
+	while ((line = fgets(buf, MAXLINELEN, Input)) != NULL)
 	{
 		if (sscanf(line, " %c %x", &Cmd, &Address) != 2)
 		{
@@ -105,7 +105,31 @@ void ParseFile(FILE *input)
 		
 		switch (Cmd)
 		{
-			case '0': /* Read request from L1 data cache */
+			case '0': ;/* Read request from L1 data cache */
+			
+				/* hack for testing - this all goes into functions */
+				unsigned int index = ID(Address);
+				unsigned int tag = TAG(Address);
+				unsigned int way = Lookup(Address);
+
+				printf("Read address %x: index = %u, tag = %u\n", Address, index, tag);
+
+				if (way == NOTPRESENT)
+				{
+					printf("L1 read miss: ");
+
+					way = GetLRU(index);
+					Set[index].way[way].tag = tag;
+					Set[index].way[way].state = 1;
+					printf("inserted at way %u\n", way);
+				}
+				else
+				{
+					printf("L1 read hit @ way %u\n", way);
+				}
+				SetMRU(index, way);
+				break;
+
 			case '1': /* Write request from L1 data cache */
 			case '2': /* Read request from L1 instruction cache */
 			case '3': /* Snooped invalidate command */
@@ -115,42 +139,58 @@ void ParseFile(FILE *input)
 				break;
 			case '8': /* Clear cache and reset state */
 				/* this is cheesy but why not */
-				free(set);
+				free(Set);
 				Init();
 				break;		
 			case '9': /* Print contents and state of each valid cache line */
+				printf("Stats go here\n");
 				break;
 					
 			default:
-				fprintf(stderr, "bad command character: '%c' at line %d\n", Cmd, linecount);
+				fprintf(stderr, "bad command character: '%c' at line %d\n", Cmd, LineCount);
 				exit(1);
 		}
-		linecount += 1;
+		LineCount += 1;
 	}
+}
+
+unsigned int Lookup(unsigned int Address)
+{
+	unsigned int index = ID(Address);
+	unsigned int tag = TAG(Address);
+
+	for (int j = 0; j < NUM_ASSC; j++)
+	{
+		if (Set[index].way[j].state && (Set[index].way[j].tag == tag))
+		{
+			return j;
+		}
+	}
+	return NOTPRESENT;
 }
 
 /*  
 Used to simulate a bus operation and to capture the snoop results of last level 
 caches of other processors 
 */ 
-void BusOperation(char BusOp, unsigned int Address, char *SnoopResult) 
+void BusOperation(int BusOp, unsigned int Address, int SnoopResult) 
 { 
 	// SnoopResult = GetSnoopResult(Address);
 	if (NormalMode)
 	{ 
-		printf("BusOp: %d, Address: %x, Snoop Result: %d\n", BusOp, Address, *SnoopResult);
+		printf("BusOp: %d, Address: %x, Snoop Result: %d\n", BusOp, Address, SnoopResult);
 	}
 } 
  
 /* Simulate the reporting of snoop results by other caches */ 
-char GetSnoopResult(unsigned int Address) 
+int GetSnoopResult(unsigned int Address) 
 { 
 	/* returns HIT, NOHIT, or HITM */
 	return NOHIT;
 } 
  
 /* Report the result of our snooping bus operations performed by other caches */ 
-void PutSnoopResult(unsigned int Address, char SnoopResult)
+void PutSnoopResult(unsigned int Address, int SnoopResult)
 { 
 	if (NormalMode)
 	{		
@@ -159,10 +199,42 @@ void PutSnoopResult(unsigned int Address, char SnoopResult)
 } 
  
 /* Used to simulate communication to our upper level cache */ 
-void MessageToCache(char Message, unsigned int Address)
+void MessageToCache(int Message, unsigned int Address)
 { 
 	if (NormalMode)
 	{		
 		printf("L2: %d %x\n",  Message, Address);
 	}
+}
+
+unsigned int GetLRU(unsigned int index)
+{
+	unsigned int i, b, val;
+	i = 0;
+	b = 0;
+	val = 0;
+
+	for (int j = 0; j < 3; j++)
+	{
+	    b = (Set[index].PLRU & (1 << i)) ? 1 : 0;
+	    val = val | (b << (2 - j));
+	    i = 2*i + 1 + b;
+	}
+	return val;
+}
+
+void SetMRU(unsigned int index, unsigned int way)
+{
+  unsigned int i, b;
+  i = 0;
+  b = 0;
+
+  for (int j = 2; j >= 0; j--)
+    {
+      b = (way & (1 << j)) ? 1 : 0;
+      Set[index].PLRU = (Set[index].PLRU & ~(1 << i)) | (b ? 0 : (1 << i));
+      i = 2*i + 1 + b;
+    }
+
+  printf ("MRU = %u -> LRU = %u\n", way, GetLRU(index));
 }

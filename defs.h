@@ -21,15 +21,24 @@
 
 typedef struct Way
 {
-	bool valid;
-	bool dirty;
-	uint32_t tag;
+	uint8_t state;
+	unsigned int tag;
 } Way_t;
 
 typedef struct Set
 {
 	Way_t way[NUM_ASSC];
+	uint8_t PLRU;
 } Set_t;
+
+#define NOTPRESENT 0xFF
+
+/* MESI Flags */
+
+#define I    	0  /* Invalid */ 
+#define S   	1  /* Shared */ 
+#define E  		2  /* Exclusive */ 
+#define M    	3  /* Modified */ 
 
 /* Bus Operation types */ 
  
@@ -54,13 +63,17 @@ typedef struct Set
 // may be present in L1.   It could be done by a combination of GETLINE 
 // (if the line is potentially modified in L1) and INVALIDATELINE. 
 
-void BusOperation(char BusOp, unsigned int Address, char *SnoopResult); 
-char GetSnoopResult(unsigned int Address);
-void PutSnoopResult(unsigned int Address, char SnoopResult);
-void MessageToCache(char Message, unsigned int Address);
+void BusOperation(int BusOp, unsigned int Address, int SnoopResult); 
+int GetSnoopResult(unsigned int Address);
+void PutSnoopResult(unsigned int Address, int SnoopResult);
+void MessageToCache(int Message, unsigned int Address);
 
 void Init();
-void ParseFile(FILE *input);
-void Cleanup(FILE *file);
+void ParseFile(FILE *Input);
+unsigned int Lookup(unsigned int Address);
+void Cleanup(FILE *File);
+
+unsigned int GetLRU(unsigned int index);
+void SetMRU(unsigned int index, unsigned int way);
 
 #endif
