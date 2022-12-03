@@ -131,6 +131,23 @@ void ParseFile(FILE *Input)
 				break;
 
 			case '1': /* Write request from L1 data cache */
+				{
+					unsigned int index = ID(Address);
+					unsigned int tag = TAG(Address);
+					unsigned int way = Lookup(Address);
+					if(way == NOTPRESENT) //MISS
+					{
+						way = GetLRU(index);
+						Set[index].way[way].tag = tag;
+						Set[index].way[way].state = 1;
+						printf("inserted at way %u\n", way);
+					}
+					else
+					{
+
+					}
+				}
+
 			case '2': /* Read request from L1 instruction cache */
 			case '3': /* Snooped invalidate command */
 			case '4': /* Snooped read request */
@@ -237,4 +254,47 @@ void SetMRU(unsigned int index, unsigned int way)
     }
 
   printf ("MRU = %u -> LRU = %u\n", way, GetLRU(index));
+}
+
+//takes way and address and preforms eviction based on way
+//way must be determined using getLRU before calling function. 
+void DoEviction(unsigned int Address, unsigned int way)
+{
+	unsigned int index = ID(Address);
+	unsigned int tag = TAG(Address);
+
+	if(way > 7)
+	{
+		perror("WTF are you doing you stupid fuck: way greater than 7 \n");
+		return -1;
+	}
+	else
+	{
+		
+		switch(Set[index].way[way].state)
+		{
+			case INVALID:
+			{
+				return;
+			}
+
+			case MODIFIED: 
+			{
+				MessageToCache( GETLINE , Address);
+				MessageToCache( INVALIDATELINE , Address);
+				Set[index].way[way].state = INVALID; 
+
+				//TODO: figure out what this thing does. 
+				/* BusOperation(WRITE, Address, ) */ 
+			}
+			case SHARED:
+			case EXCLUSIVE: 
+				Set[index].way[way].state = INVALID;
+			default: 
+			{
+				perror("Do eviction function fell through \n"); 
+				return -1;
+			} 
+		}
+	}
 }

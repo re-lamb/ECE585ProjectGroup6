@@ -35,10 +35,10 @@ typedef struct Set
 
 /* MESI Flags */
 
-#define I    	0  /* Invalid */ 
-#define S   	1  /* Shared */ 
-#define E  		2  /* Exclusive */ 
-#define M    	3  /* Modified */ 
+#define INVALID    	0  /* Invalid */ 
+#define SHARED  	1  /* Shared */ 
+#define EXCLUSIVE 	2  /* Exclusive */ 
+#define MODIFIED    3  /* Modified */ 
 
 /* Bus Operation types */ 
  
@@ -73,7 +73,8 @@ void ParseFile(FILE *Input);
 unsigned int Lookup(unsigned int Address);
 void Cleanup(FILE *File);
 
-unsigned int GetLRU(unsigned int index);
-void SetMRU(unsigned int index, unsigned int way);
+unsigned int GetLRU(unsigned int index);   			//returns way # LRU
+void SetMRU(unsigned int index, unsigned int way);  
+void DoEviction(unsigned int way, unsigned int index); 
 
 #endif
