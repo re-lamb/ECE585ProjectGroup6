@@ -94,7 +94,7 @@ void ParseFile(FILE *Input)
 	
 	char *line;
 	char buf[MAXLINELEN];
-	
+
 	while ((line = fgets(buf, MAXLINELEN, Input)) != NULL)
 	{
 		if (sscanf(line, " %c %x", &Cmd, &Address) != 2)
@@ -106,7 +106,7 @@ void ParseFile(FILE *Input)
 		switch (Cmd)
 		{
 			case '0': ;/* Read request from L1 data cache */
-			
+			{
 				/* hack for testing - this all goes into functions */
 				unsigned int index = ID(Address);
 				unsigned int tag = TAG(Address);
@@ -116,6 +116,7 @@ void ParseFile(FILE *Input)
 
 				if (way == NOTPRESENT)
 				{
+					Misses++; 
 					printf("L1 read miss: ");
 
 					way = GetLRU(index);
@@ -125,11 +126,14 @@ void ParseFile(FILE *Input)
 				}
 				else
 				{
+					Hits++; 
+					Reads++; 
 					printf("L1 read hit @ way %u\n", way);
 				}
 				SetMRU(index, way);
 				break;
-
+			}
+		
 			case '1': /* Write request from L1 data cache */
 				{
 					unsigned int index = ID(Address);
@@ -142,9 +146,15 @@ void ParseFile(FILE *Input)
 						Set[index].way[way].tag = tag;		   //fill cache line 
 						Set[index].way[way].state = EXCLUSIVE; //TODO: Change to actual bus result EXCLUSIVE status is temporary
 						printf("inserted at way %u\n", way);
+						SetMRU(index, way); 
+						Misses++; 
 					}
 					else
 					{
+						SetMRU(index, way); 
+						//update stats
+						Hits++; 
+						Writes++; 
 						switch(Set[index].way[way].state)
 						{
 							case MODIFIED: 
@@ -172,6 +182,20 @@ void ParseFile(FILE *Input)
 				}
 
 			case '2': /* Read request from L1 instruction cache */
+			{
+					unsigned int index = ID(Address);
+					unsigned int tag = TAG(Address);
+					unsigned int way = Lookup(Address);
+					if(way == NOTPRESENT) //MISS
+					{
+						way = GetLRU(index);
+						DoEviction(Address, way); 
+						Set[index].way[way].tag = tag;		   //fill cache line 
+						Set[index].way[way].state = EXCLUSIVE; //TODO: Change to actual bus result EXCLUSIVE status is temporary
+						printf("inserted at way %u\n", way);
+					}
+			}
+			
 			case '3': /* Snooped invalidate command */
 			case '4': /* Snooped read request */
 			case '5': /* Snooped write request */
