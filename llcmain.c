@@ -138,13 +138,36 @@ void ParseFile(FILE *Input)
 					if(way == NOTPRESENT) //MISS
 					{
 						way = GetLRU(index);
-						Set[index].way[way].tag = tag;
-						Set[index].way[way].state = 1;
+						DoEviction(Address, way); 
+						Set[index].way[way].tag = tag;		   //fill cache line 
+						Set[index].way[way].state = EXCLUSIVE; //TODO: Change to actual bus result EXCLUSIVE status is temporary
 						printf("inserted at way %u\n", way);
 					}
 					else
 					{
-
+						switch(Set[index].way[way].state)
+						{
+							case MODIFIED: 
+							{
+								Set[index].way[way].state = MODIFIED; 	 
+								//no bus op 
+							}
+							case EXCLUSIVE: 
+							{
+								Set[index].way[way].state = MODIFIED; 
+								//no bus op
+							}
+							case SHARED:
+							{
+								Set[index].way[way].state = MODIFIED; 
+								BusOperation(RWIM, Address, NOHIT); 
+							}
+							case INVALID: 
+							{
+								Set[index].way[way].state = MODIFIED;
+								BusOperation(RWIM, Address, NOHIT); 
+							} 
+						}
 					}
 				}
 
@@ -285,7 +308,7 @@ void DoEviction(unsigned int Address, unsigned int way)
 				Set[index].way[way].state = INVALID; 
 
 				//TODO: figure out what this thing does. 
-				/* BusOperation(WRITE, Address, ) */ 
+				BusOperation(WRITE, Address, NOHIT);  
 			}
 			case SHARED:
 			case EXCLUSIVE: 
