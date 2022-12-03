@@ -125,8 +125,29 @@ void ParseFile(FILE *input)
 				fprintf(stderr, "bad command character: '%c' at line %d\n", Cmd, linecount);
 				exit(1);
 		}
+<<<<<<< Updated upstream
 		linecount += 1;
 	}
+=======
+		LineCount += 1;
+	}
+}
+
+unsigned int Lookup(unsigned int Address)
+{
+	unsigned int index = ID(Address);	// mask out ID bits from address
+	unsigned int tag = TAG(Address);	// mask out TAG bits from address
+
+	for (int i = 0; i < NUM_ASSC; i++)	// Loop through all ways 8-associative
+	{
+		if ((Set[index].way[i].state != 0) && (Set[index].way[i].tag == tag))
+		{
+			// If the state is equal not equal to invalid then it must be in the PLRU
+			return i; // return the way inside of PLRU
+		}
+	}
+	return NOTPRESENT;	// Miss if value is 0xFF. Hit if != 0xFF
+>>>>>>> Stashed changes
 }
 
 /*  
