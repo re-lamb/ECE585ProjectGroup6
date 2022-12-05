@@ -1,14 +1,14 @@
 /*
-	Group 6 Final Project
-	
-	llc - last level cache simulator
-	
-	usage:  llc [filename] [-s]
-	
-	if no filename given, reads standard input.
-	"Normal" processing produces output for each
-	line of input; -s turns	off all but statistics
-	output.
+    Group 6 Final Project
+    
+    llc - last level cache simulator
+    
+    usage:  llc [filename] [-s]
+    
+    if no filename given, reads standard input.
+    "Normal" processing produces output for each
+    line of input; -s turns off all but statistics
+    output.
 */
 
 #include "defs.h"
@@ -19,81 +19,101 @@
  */
 void Init()
 {
-	/* calloc assures valid-flag initialized to zero */
-	Set = calloc(NUM_SETS, sizeof(Set_t));
+    /* calloc assures valid-flag initialized to zero */
+    Set = calloc(NUM_SETS, sizeof(Set_t));
 
-	if (Set == NULL)
-	{
-		fprintf(stderr, "Memory allocation failed in Init()\n");
-		exit(1);
-	}
-	
-	Reads = 0;
-	Writes = 0;
-	Hits = 0;
-	Misses = 0;
+    if (Set == NULL)
+    {
+        fprintf(stderr, "Memory allocation failed in Init()\n");
+        exit(1);
+    }
+    
+    Reads = 0;
+    Writes = 0;
+    Hits = 0;
+    Misses = 0;
 }
 
+/*
+ * Free memory and close the input file.
+ */
 void Cleanup(FILE *Input)
 {
-	free(Set);
-	fclose(Input);
+    free(Set);
+    fclose(Input);
 }
 
+/*
+ * Print our cache statistics and compute the hit ratio.
+ */
+void PrintStatistics()
+{
+    printf("\nStatistics:\n");
+    printf("  Cache reads:  %d\n", Reads);
+    printf("  Cache writes: %d\n", Writes);
+    printf("  Cache hits:   %d\n", Hits);
+    printf("  Cache misses: %d\n", Misses);
+    printf("  Hit ratio:    %f\n", Hits / (float)(Hits + Misses));
+}
+
+/*
+ * Read the trace file and execute each command.
+ */
 void ParseFile(FILE *Input)
 {
-	char Cmd;
-	unsigned int Address;
-	
-	char *line;
-	char buf[MAXLINELEN];
+    char Cmd;
+    unsigned int Address;
+    
+    char *line;
+    char buf[MAXLINELEN];
 
-	int LineCount = 0;
+    int LineCount = 0;
 
-	while ((line = fgets(buf, MAXLINELEN, Input)) != NULL)
-	{
-		if (sscanf(line, " %c %x", &Cmd, &Address) != 2)
-		{
-			fprintf(stderr, "Bad input at line %d ignored: '%s'\n", LineCount, line);
-			continue;
-		}
+    while ((line = fgets(buf, MAXLINELEN, Input)) != NULL)
+    {
+        if (sscanf(line, " %c %x", &Cmd, &Address) != 2)
+        {
+            fprintf(stderr, "Bad input at line %d ignored: '%s'\n", LineCount, line);
+            continue;
+        }
 
-		if (Debug) printf("\nCmd = %c, address = %x: ", Cmd, Address);
+        if (Debug) printf("\nCmd = %c, address = %x: ", Cmd, Address);
 
-		switch (Cmd)
-		{
-			case '0': 		/* Read request from L1 data cache */
-			case '2': 		/* Read request from L1 instruction cache */
-				L1Read(Address);
-				break;
-		
-			case '1': 	/* Write request from L1 data cache */
-				L1Write(Address);
-				break;
+        switch (Cmd)
+        {
+            case '0':   /* Read request from L1 data cache */
+            case '2':   /* Read request from L1 instruction cache */
+                L1Read(Address);
+                break;
+        
+            case '1':   /* Write request from L1 data cache */
+                L1Write(Address);
+                break;
 
-			case '3': /* Snooped invalidate command */
-			case '4': /* Snooped read request */
-			case '5': /* Snooped write request */
-			case '6': /* Snooped read with intent to modify */
-				break;
+            case '3':   /* Snooped invalidate command */
+            case '4':   /* Snooped read request */
+            case '5':   /* Snooped write request */
+            case '6':   /* Snooped read with intent to modify */
+                SnoopOp(Cmd, Address);
+                break;
 
-			case '8': /* Clear cache and reset state */
-				/* this is cheesy but why not */
-				free(Set);
-				Init();
-				break;
+            case '8':   /* Clear cache and reset state */
+                if (Debug) printf("Resetting\n");
+                free(Set);
+                Init();
+                break;
 
-			case '9': /* Print contents and state of each valid cache line */
-				printf("Content goes here (Stats go at the end)\n");
-				break;
-					
-			default:
-				fprintf(stderr, "Bad command character: '%c' at line %d\n", Cmd, LineCount);
-				exit(1);
-		}
+            case '9':   /* Print contents and state of each valid cache line */
+                DumpContents();
+                break;
+                    
+            default:
+                fprintf(stderr, "Bad command character: '%c' at line %d\n", Cmd, LineCount);
+                exit(1);
+        }
 
-		LineCount += 1;
-	}
+        LineCount += 1;
+    }
 }
 
 
@@ -103,14 +123,14 @@ void ParseFile(FILE *Input)
  */ 
 int BusOperation(int BusOp, unsigned int Address) 
 {
-	unsigned int SnoopResult = GetSnoopResult(Address);
+    unsigned int SnoopResult = GetSnoopResult(Address);
 
-	if (NormalMode)
-	{ 
-		printf("BusOp: %d, Address: %x, Snoop Result: %d\n", BusOp, Address, SnoopResult);
-	}
-	
-	return SnoopResult;
+    if (NormalMode)
+    { 
+        printf("BusOp: %d, Address: %x, Snoop Result: %d\n", BusOp, Address, SnoopResult);
+    }
+    
+    return SnoopResult;
 } 
  
 /*
@@ -119,17 +139,17 @@ int BusOperation(int BusOp, unsigned int Address)
  */ 
 int GetSnoopResult(unsigned int Address) 
 {
-	switch (Address & 0x3)
-	{
-		case 0x0:
-			return HIT;
+    switch (Address & 0x3)
+    {
+        case 0x0:
+            return HIT;
 
-		case 0x1:
-			return HITM;
+        case 0x1:
+            return HITM;
 
-		default:
-			return NOHIT;
-	}
+        default:
+            return NOHIT;
+    }
 } 
  
 /*
@@ -137,10 +157,10 @@ int GetSnoopResult(unsigned int Address)
  */ 
 void PutSnoopResult(unsigned int Address, int SnoopResult)
 { 
-	if (NormalMode)
-	{		
-		printf("SnoopResult: Address %x, SnoopResult: %d\n", Address, SnoopResult); 
-	}
+    if (NormalMode)
+    {       
+        printf("SnoopResult: Address %x, SnoopResult: %d\n", Address, SnoopResult); 
+    }
 } 
  
 /*
@@ -148,61 +168,62 @@ void PutSnoopResult(unsigned int Address, int SnoopResult)
  */ 
 void MessageToCache(int Message, unsigned int Address)
 { 
-	if (NormalMode)
-	{		
-		printf("L2: %d %x\n",  Message, Address);
-	}
+    if (NormalMode)
+    {       
+        printf("L2: %d %x\n",  Message, Address);
+    }
 }
 
 /*
- *	Main Program.
+ *  Main Program.
  */
 int main(int argc, char *argv[])
-{	
-	FILE *File;
-	char *FileName = NULL;
+{   
+    FILE *File;
+    char *FileName = NULL;
 
-	Debug = 1;
-	NormalMode = 1;
-	
-	for (int i = 1; i < argc; i++)
-	{
-		if (!strcasecmp(argv[i], "-s"))
-		{
-			NormalMode = 0;
-		}
-		else if (!strcasecmp(argv[i], "-d"))
-		{
-			Debug = 1;
-		}
-		else if (FileName == NULL)
-		{
-			FileName = argv[i];
-		}
-		else
-		{
-			printf("Usage: llc filename [-s]\n");
-			exit(1);
-		}
-  }
-
-	/* If no file given, read from standard input */
-	if (FileName == NULL || !strcasecmp(FileName, "-"))
-	{
-		File = stdin;
-	}
-	else
-  {
-    File = fopen(FileName, "r");
- 
-    if (!File)
+    Debug = 0;
+    NormalMode = 1;
+    
+    for (int i = 1; i < argc; i++)
     {
-      fprintf(stderr, "Could not open file %s\n", FileName);
-			exit(1);
+        if (!strcasecmp(argv[i], "-s"))
+        {
+            NormalMode = 0;
+        }
+        else if (!strcasecmp(argv[i], "-d"))
+        {
+            Debug = 1;
+        }
+        else if (FileName == NULL)
+        {
+            FileName = argv[i];
+        }
+        else
+        {
+            printf("Usage: llc filename [-s]\n");
+            exit(1);
+        }
     }
-	}
 
-	Init();
-	ParseFile(File);
-	Cleanup(File);
+    /* If no file given, read from standard input */
+    if (FileName == NULL || !strcasecmp(FileName, "-"))
+    {
+        File = stdin;
+    }
+    else
+    {
+        File = fopen(FileName, "r");
+ 
+        if (!File)
+        {
+            fprintf(stderr, "Could not open file %s\n", FileName);
+            exit(1);
+        }
+    }
+
+    Init();
+    ParseFile(File);
+    Cleanup(File);
+    PrintStatistics();
 }
