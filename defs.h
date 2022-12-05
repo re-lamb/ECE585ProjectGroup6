@@ -8,6 +8,7 @@
 #include <stdbool.h>
 
 #define MAXLINELEN 	20
+
 #define NUM_ASSC	8
 #define NUM_SETS	0x8000
 
@@ -19,17 +20,33 @@
 #define ID(x)		((x >> ID_SHIFT) & ID_MASK)
 #define TAG(x)		((x >> TAG_SHIFT) & TAG_MASK)
 
+#define ADDRFROM(id, w)	((Set[id].way[w].tag << TAG_SHIFT) | (id << ID_SHIFT))
+
+
 typedef struct Way
 {
-	bool valid;
-	bool dirty;
-	uint32_t tag;
+	uint8_t state;
+	unsigned int tag;
 } Way_t;
+
 
 typedef struct Set
 {
 	Way_t way[NUM_ASSC];
+	uint8_t PLRU;
 } Set_t;
+
+
+/* Flag for tag not valid in a given set */
+
+#define NOTPRESENT 0xFF
+
+/* MESI Flags */
+
+#define INVALID    	0  /* Invalid */ 
+#define SHARED  	1  /* Shared */ 
+#define EXCLUSIVE 	2  /* Exclusive */ 
+#define MODIFIED    3  /* Modified */ 
 
 /* Bus Operation types */ 
  
@@ -40,9 +57,9 @@ typedef struct Set
  
 /* Snoop Result types */ 
  
-#define NOHIT   0  /* No hit */ 
-#define HIT    	1  /* Hit */ 
-#define HITM   	2  /* Hit to modified line */ 
+#define NOHIT   	0  /* No hit */ 
+#define HIT    		1  /* Hit */ 
+#define HITM   		2  /* Hit to modified line */ 
  
 /* L2 to L1 message types */ 
  
@@ -50,17 +67,31 @@ typedef struct Set
 #define SENDLINE    	2  /* Send requested cache line to L1 */ 
 #define INVALIDATELINE  3  /* Invalidate a line in L1 */ 
 #define EVICTLINE    	4  /* Evict a line from L1 */ 
-// this is when L2's replacement policy causes eviction of a line that 
-// may be present in L1.   It could be done by a combination of GETLINE 
-// (if the line is potentially modified in L1) and INVALIDATELINE. 
 
-void BusOperation(char BusOp, unsigned int Address, char *SnoopResult); 
-char GetSnoopResult(unsigned int Address);
-void PutSnoopResult(unsigned int Address, char SnoopResult);
-void MessageToCache(char Message, unsigned int Address);
+/* Globals.  This is a little gross. */
 
-void Init();
-void ParseFile(FILE *input);
-void Cleanup(FILE *file);
+Set_t *Set;
+
+int Debug;
+int NormalMode;
+
+unsigned int Reads,
+			 Writes,
+			 Hits,
+			 Misses;
+
+
+void L1Read(unsigned int Address);
+void L1Write(unsigned int Address);
+
+int BusOperation(int BusOp, unsigned int Address); 
+int GetSnoopResult(unsigned int Address);
+void PutSnoopResult(unsigned int Address, int SnoopResult);
+void MessageToCache(int Message, unsigned int Address);
+
+unsigned int Lookup(unsigned int Address);
+unsigned int GetLRU(unsigned int index);
+void SetMRU(unsigned int index, unsigned int way);  
+void DoEviction(unsigned int way, unsigned int index); 
 
 #endif
