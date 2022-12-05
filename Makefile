@@ -1,5 +1,6 @@
 CC = gcc
-OBJS = llcmain.c
+DEFS = defs.h
+SRCS = llcmain.c cacheops.c
 
 INCLUDE_PATHS =
 LIBRARY_PATHS =
@@ -9,8 +10,8 @@ LDFLAGS =
 
 OBJ_NAME = llc
 
-all : $(OBJS)
-	$(CC) $(OBJS) $(INCLUDE_PATHS) $(LIBRARY_PATHS) $(CFLAGS) $(LDFLAGS) -o $(OBJ_NAME)
+all: $(DEFS) $(SRCS)
+	$(CC) $(SRCS) $(INCLUDE_PATHS) $(LIBRARY_PATHS) $(CFLAGS) $(LDFLAGS) -o $(OBJ_NAME)
 	
 clean:
 	rm -f $(OBJ_NAME) $(OBJ_NAME).exe

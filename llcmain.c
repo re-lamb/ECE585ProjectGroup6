@@ -10,66 +10,21 @@
 	line of input; -s turns	off all but statistics
 	output.
 */
+
 #include "defs.h"
 
-Set_t *Set = NULL;
-int NormalMode = 1;
-unsigned int Reads,
-			 Writes,
-			 Hits,
-			 Misses,
-			 HitRatio;
 
-int main(int argc, char *argv[])
-{	
-	FILE *File;
-	char *FileName = NULL;
-	
-	for (int i = 1; i < argc; i++)
-	{
-		if (!strcasecmp(argv[i], "-s"))
-		{
-			NormalMode = 0;
-		}
-		else if (FileName == NULL)
-		{
-			FileName = argv[i];
-		}
-		else
-		{
-			printf("Usage: llc filename [-s]\n");
-			exit(1);
-		}
-    }
-
-	/* If no file given, read from standard input */
-	if (FileName == NULL || !strcasecmp(FileName, "-"))
-	{
-		File = stdin;
-	}
-	else
-    {
-        File = fopen(FileName, "r");
- 
-        if (!File)
-        {
-            fprintf(stderr, "Could not open file %s\n", FileName);
-			exit(1);
-        }
-	}
-
-	Init();
-	ParseFile(File);
-	Cleanup(File);
-}
-
+/*
+ * Allocate the cache tag array and zero the stats counters.
+ */
 void Init()
 {
 	/* calloc assures valid-flag initialized to zero */
 	Set = calloc(NUM_SETS, sizeof(Set_t));
+
 	if (Set == NULL)
 	{
-		fprintf(stderr, "Memory allocation error\n");
+		fprintf(stderr, "Memory allocation failed in Init()\n");
 		exit(1);
 	}
 	
@@ -77,7 +32,6 @@ void Init()
 	Writes = 0;
 	Hits = 0;
 	Misses = 0;
-	HitRatio = 0;
 }
 
 void Cleanup(FILE *Input)
@@ -90,170 +44,97 @@ void ParseFile(FILE *Input)
 {
 	char Cmd;
 	unsigned int Address;
-	int LineCount = 0;
 	
 	char *line;
 	char buf[MAXLINELEN];
+
+	int LineCount = 0;
 
 	while ((line = fgets(buf, MAXLINELEN, Input)) != NULL)
 	{
 		if (sscanf(line, " %c %x", &Cmd, &Address) != 2)
 		{
-			fprintf(stderr, "Bad input line ignored: '%s'\n", line);
+			fprintf(stderr, "Bad input at line %d ignored: '%s'\n", LineCount, line);
 			continue;
 		}
-		
+
+		if (Debug) printf("\nCmd = %c, address = %x: ", Cmd, Address);
+
 		switch (Cmd)
 		{
-			case '0': ;/* Read request from L1 data cache */
-			{
-				/* hack for testing - this all goes into functions */
-				unsigned int index = ID(Address);
-				unsigned int tag = TAG(Address);
-				unsigned int way = Lookup(Address);
-
-				printf("Read address %x: index = %u, tag = %u\n", Address, index, tag);
-
-				if (way == NOTPRESENT)
-				{
-					Misses++; 
-					printf("L1 read miss: ");
-
-					way = GetLRU(index);
-					Set[index].way[way].tag = tag;
-					Set[index].way[way].state = 1;
-					printf("inserted at way %u\n", way);
-				}
-				else
-				{
-					Hits++; 
-					Reads++; 
-					printf("L1 read hit @ way %u\n", way);
-				}
-				SetMRU(index, way);
+			case '0': 		/* Read request from L1 data cache */
+			case '2': 		/* Read request from L1 instruction cache */
+				L1Read(Address);
 				break;
-			}
 		
-			case '1': /* Write request from L1 data cache */
-				{
-					unsigned int index = ID(Address);
-					unsigned int tag = TAG(Address);
-					unsigned int way = Lookup(Address);
-					if(way == NOTPRESENT) //MISS
-					{
-						way = GetLRU(index);
-						DoEviction(Address, way); 
-						Set[index].way[way].tag = tag;		   //fill cache line 
-						Set[index].way[way].state = EXCLUSIVE; //TODO: Change to actual bus result EXCLUSIVE status is temporary
-						printf("inserted at way %u\n", way);
-						SetMRU(index, way); 
-						Misses++; 
-					}
-					else
-					{
-						SetMRU(index, way); 
-						//update stats
-						Hits++; 
-						Writes++; 
-						switch(Set[index].way[way].state)
-						{
-							case MODIFIED: 
-							{
-								Set[index].way[way].state = MODIFIED; 	 
-								//no bus op 
-							}
-							case EXCLUSIVE: 
-							{
-								Set[index].way[way].state = MODIFIED; 
-								//no bus op
-							}
-							case SHARED:
-							{
-								Set[index].way[way].state = MODIFIED; 
-								BusOperation(RWIM, Address, NOHIT); 
-							}
-							case INVALID: 
-							{
-								Set[index].way[way].state = MODIFIED;
-								BusOperation(RWIM, Address, NOHIT); 
-							} 
-						}
-					}
-				}
+			case '1': 	/* Write request from L1 data cache */
+				L1Write(Address);
+				break;
 
-			case '2': /* Read request from L1 instruction cache */
-			{
-					unsigned int index = ID(Address);
-					unsigned int tag = TAG(Address);
-					unsigned int way = Lookup(Address);
-					if(way == NOTPRESENT) //MISS
-					{
-						way = GetLRU(index);
-						DoEviction(Address, way); 
-						Set[index].way[way].tag = tag;		   //fill cache line 
-						Set[index].way[way].state = EXCLUSIVE; //TODO: Change to actual bus result EXCLUSIVE status is temporary
-						printf("inserted at way %u\n", way);
-					}
-			}
-			
 			case '3': /* Snooped invalidate command */
 			case '4': /* Snooped read request */
 			case '5': /* Snooped write request */
 			case '6': /* Snooped read with intent to modify */
 				break;
+
 			case '8': /* Clear cache and reset state */
 				/* this is cheesy but why not */
 				free(Set);
 				Init();
-				break;		
+				break;
+
 			case '9': /* Print contents and state of each valid cache line */
-				printf("Stats go here\n");
+				printf("Content goes here (Stats go at the end)\n");
 				break;
 					
 			default:
-				fprintf(stderr, "bad command character: '%c' at line %d\n", Cmd, LineCount);
+				fprintf(stderr, "Bad command character: '%c' at line %d\n", Cmd, LineCount);
 				exit(1);
 		}
+
 		LineCount += 1;
 	}
 }
 
-unsigned int Lookup(unsigned int Address)
-{
-	unsigned int index = ID(Address);
-	unsigned int tag = TAG(Address);
-
-	for (int j = 0; j < NUM_ASSC; j++)
-	{
-		if (Set[index].way[j].state && (Set[index].way[j].tag == tag))
-		{
-			return j;
-		}
-	}
-	return NOTPRESENT;
-}
 
 /*  
-Used to simulate a bus operation and to capture the snoop results of last level 
-caches of other processors 
-*/ 
-void BusOperation(int BusOp, unsigned int Address, int SnoopResult) 
-{ 
-	// SnoopResult = GetSnoopResult(Address);
+ * Simulate a bus operation and capture the snoop result of last level 
+ * caches of other processors. 
+ */ 
+int BusOperation(int BusOp, unsigned int Address) 
+{
+	unsigned int SnoopResult = GetSnoopResult(Address);
+
 	if (NormalMode)
 	{ 
 		printf("BusOp: %d, Address: %x, Snoop Result: %d\n", BusOp, Address, SnoopResult);
 	}
+	
+	return SnoopResult;
 } 
  
-/* Simulate the reporting of snoop results by other caches */ 
+/*
+ * Simulate the reporting of snoop results by other caches.
+ * NB: Responses based on the Address lsb as directed by Prof. Faust.
+ */ 
 int GetSnoopResult(unsigned int Address) 
-{ 
-	/* returns HIT, NOHIT, or HITM */
-	return NOHIT;
+{
+	switch (Address & 0x3)
+	{
+		case 0x0:
+			return HIT;
+
+		case 0x1:
+			return HITM;
+
+		default:
+			return NOHIT;
+	}
 } 
  
-/* Report the result of our snooping bus operations performed by other caches */ 
+/*
+ * Report our response to bus operations performed by other caches.
+ */ 
 void PutSnoopResult(unsigned int Address, int SnoopResult)
 { 
 	if (NormalMode)
@@ -262,7 +143,9 @@ void PutSnoopResult(unsigned int Address, int SnoopResult)
 	}
 } 
  
-/* Used to simulate communication to our upper level cache */ 
+/*
+ * Simulate communication to our upper level cache.
+ */ 
 void MessageToCache(int Message, unsigned int Address)
 { 
 	if (NormalMode)
@@ -271,77 +154,55 @@ void MessageToCache(int Message, unsigned int Address)
 	}
 }
 
-unsigned int GetLRU(unsigned int index)
-{
-	unsigned int i, b, val;
-	i = 0;
-	b = 0;
-	val = 0;
+/*
+ *	Main Program.
+ */
+int main(int argc, char *argv[])
+{	
+	FILE *File;
+	char *FileName = NULL;
 
-	for (int j = 0; j < 3; j++)
+	Debug = 1;
+	NormalMode = 1;
+	
+	for (int i = 1; i < argc; i++)
 	{
-	    b = (Set[index].PLRU & (1 << i)) ? 1 : 0;
-	    val = val | (b << (2 - j));
-	    i = 2*i + 1 + b;
-	}
-	return val;
-}
+		if (!strcasecmp(argv[i], "-s"))
+		{
+			NormalMode = 0;
+		}
+		else if (!strcasecmp(argv[i], "-d"))
+		{
+			Debug = 1;
+		}
+		else if (FileName == NULL)
+		{
+			FileName = argv[i];
+		}
+		else
+		{
+			printf("Usage: llc filename [-s]\n");
+			exit(1);
+		}
+  }
 
-void SetMRU(unsigned int index, unsigned int way)
-{
-  unsigned int i, b;
-  i = 0;
-  b = 0;
-
-  for (int j = 2; j >= 0; j--)
-    {
-      b = (way & (1 << j)) ? 1 : 0;
-      Set[index].PLRU = (Set[index].PLRU & ~(1 << i)) | (b ? 0 : (1 << i));
-      i = 2*i + 1 + b;
-    }
-
-  printf ("MRU = %u -> LRU = %u\n", way, GetLRU(index));
-}
-
-//takes way and address and preforms eviction based on way
-//way must be determined using getLRU before calling function. 
-void DoEviction(unsigned int Address, unsigned int way)
-{
-	unsigned int index = ID(Address);
-	unsigned int tag = TAG(Address);
-
-	if(way > 7)
+	/* If no file given, read from standard input */
+	if (FileName == NULL || !strcasecmp(FileName, "-"))
 	{
-		perror("WTF are you doing you stupid fuck: way greater than 7 \n");
-		return -1;
+		File = stdin;
 	}
 	else
-	{
-		
-		switch(Set[index].way[way].state)
-		{
-			case INVALID:
-			{
-				return;
-			}
-
-			case MODIFIED: 
-			{
-				MessageToCache( GETLINE , Address);
-				MessageToCache( INVALIDATELINE , Address);
-				Set[index].way[way].state = INVALID; 
-
-				//TODO: figure out what this thing does. 
-				BusOperation(WRITE, Address, NOHIT);  
-			}
-			case SHARED:
-			case EXCLUSIVE: 
-				Set[index].way[way].state = INVALID;
-			default: 
-			{
-				perror("Do eviction function fell through \n"); 
-				return -1;
-			} 
-		}
+  {
+    File = fopen(FileName, "r");
+ 
+    if (!File)
+    {
+      fprintf(stderr, "Could not open file %s\n", FileName);
+			exit(1);
+    }
 	}
+
+	Init();
+	ParseFile(File);
+	Cleanup(File);
 }
