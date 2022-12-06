@@ -4,6 +4,9 @@
 
 #include "defs.h"
 
+/* MESI states for printing */
+const char States[] = "ISEM";
+
 /*
  * Handle a read request from the L1 caches.
  */
@@ -27,7 +30,7 @@ void L1Read(unsigned int Address)
         way = GetLRU(index);
         DoEviction(index, way); 
         Set[index].way[way].tag = tag;
-        if (Debug) printf("Miss!  Inserted @ way %d, ", way);
+        if (Debug) printf("Miss!  Inserted @ way %d\n", way);
         
         /* Go fetch the value and set status accordingly */
         busResult = BusOperation(READ, Address);
@@ -44,10 +47,15 @@ void L1Read(unsigned int Address)
     else
     {
         Hits++; 
-        if (Debug) printf("Hit!  Found @ way %d, status is %d\n", way, Set[index].way[way].state);
+        if (Debug) printf("Hit!  Found @ way %d\n", way);
     }
 
-    /* Either way, touch this entry */
+    if (Debug) printf("Status is %c\n", States[Set[index].way[way].state]);
+
+    /* Push the data into L1 */
+    MessageToCache(SENDLINE, Address);
+
+    /* Touch this entry */
     SetMRU(index, way);
 }
 
@@ -81,7 +89,7 @@ void L1Write(unsigned int Address)
     else
     {
         Hits++;
-        if (Debug) printf("Hit!  Found @ way %d, status is %d\n", way, Set[index].way[way].state);
+        if (Debug) printf("Hit!  Found @ way %d\n", way);
 
         /*
          * On a hit, we only inform the bus for transitions
@@ -96,6 +104,8 @@ void L1Write(unsigned int Address)
 
     /* Hit OR miss, we now hold the current (dirty) copy */
     Set[index].way[way].state = MODIFIED;
+
+    if (Debug) printf("Status is %c\n", States[Set[index].way[way].state]);
 
     /* Touch it */                  
     SetMRU(index, way); 
@@ -341,8 +351,6 @@ void DoEviction(unsigned int index, unsigned int way)
  */
 void DumpContents()
 {
-    char states[] = "ISEM";
-
     int index, way, active;
 
     if (Debug) printf("\n");
@@ -362,8 +370,8 @@ void DumpContents()
                 }    
 
                 printf("  way %d: tag %08x, state %c\n", way,
-                    Set[index].way[way].tag,
-                    states[Set[index].way[way].state]);
+                        Set[index].way[way].tag,
+                        States[Set[index].way[way].state]);
             }
         }
     }
