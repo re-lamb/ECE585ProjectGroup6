@@ -54,13 +54,13 @@ typedef struct Set
 #define WRITE       2  /* Bus Write */ 
 #define INVALIDATE  3  /* Bus Invalidate */ 
 #define RWIM        4  /* Bus Read With Intent to Modify */ 
- 
+
 /* Snoop Result types */ 
  
 #define NOHIT       0  /* No hit */ 
 #define HIT         1  /* Hit */ 
 #define HITM        2  /* Hit to modified line */ 
- 
+
 /* L2 to L1 message types */ 
  
 #define GETLINE         1  /* Request data for modified line in L1 */ 

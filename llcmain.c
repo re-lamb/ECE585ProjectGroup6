@@ -13,6 +13,30 @@
 
 #include "defs.h"
 
+/*
+ * Make the debugging more readable
+ */
+const char *BusStr[] = {
+    "NOOP",
+    "READ",
+    "WRITE",
+    "INVALIDATE",
+    "RWIM"
+};
+ 
+const char *SnoopStr[] = {
+    "NOHIT",
+    "HIT",
+    "HITM"
+};
+
+const char *L1Msg[] = {
+    "NOOP",
+    "GETLINE",
+    "SENDLINE",
+    "INVALIDATELINE",
+    "EVICTLINE"
+};
 
 /*
  * Allocate the cache tag array and zero the stats counters.
@@ -53,6 +77,8 @@ void PrintStatistics()
     printf("  Cache writes: %d\n", Writes);
     printf("  Cache hits:   %d\n", Hits);
     printf("  Cache misses: %d\n", Misses);
+    if ((Hits + Misses) == 0) return;
+
     printf("  Hit ratio:    %f\n", Hits / (float)(Hits + Misses));
 }
 
@@ -127,7 +153,8 @@ int BusOperation(int BusOp, unsigned int Address)
 
     if (NormalMode)
     { 
-        printf("BusOp: %d, Address: %x, Snoop Result: %d\n", BusOp, Address, SnoopResult);
+        printf("BusOp: %s, Address: %x, Snoop Result: %s\n",
+                BusStr[BusOp], Address, SnoopStr[SnoopResult]);
     }
     
     return SnoopResult;
@@ -159,7 +186,8 @@ void PutSnoopResult(unsigned int Address, int SnoopResult)
 { 
     if (NormalMode)
     {       
-        printf("SnoopResult: Address %x, SnoopResult: %d\n", Address, SnoopResult); 
+        printf("SnoopResult: Address %x, SnoopResult: %s\n",
+                Address, SnoopStr[SnoopResult]); 
     }
 } 
  
@@ -170,7 +198,7 @@ void MessageToCache(int Message, unsigned int Address)
 { 
     if (NormalMode)
     {       
-        printf("L2: %d %x\n",  Message, Address);
+        printf("L2: %s %x\n", L1Msg[Message], Address);
     }
 }
 
