@@ -71,7 +71,7 @@ void L1Write(unsigned int Address)
     way = Lookup(Address);
 
     Writes++;
-    if (Debug) printf("Write from L1: index = %u, tag = %u\n", index, tag);
+    if (Debug) printf("Write from L1: index = %x, tag = %x\n", index, tag);
 
     if (way == NOTPRESENT)
     {
@@ -107,6 +107,10 @@ void L1Write(unsigned int Address)
 
     if (Debug) printf("Status is %c\n", States[Set[index].way[way].state]);
 
+    /* Have room now, get from L1 */
+    /* IS THIS IMPLICIT OR EXPLICIT? TIME WILL TELL. */
+    MessageToCache(GETLINE, Address);
+
     /* Touch it */                  
     SetMRU(index, way); 
 }
@@ -137,7 +141,7 @@ void SnoopOp(int Cmd, unsigned int Address)
 
             if (state == MODIFIED)
             {
-               PutSnoopResult(Address, HITM);
+                PutSnoopResult(Address, HITM);
                 /*
                  * We're being told to invalidate, meaning
                  * if we have a copy we have to update/flush
